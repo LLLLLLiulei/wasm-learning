@@ -1,0 +1,140 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script src="wasm_exec.js"></script>
+  </head>
+  <body>
+    <h1>WASM TEST</h1>
+    <div>
+      <div>
+        加密方式：
+        <select id="encryptType" onchange="encryptTypeChange()">
+          <option value="RSA">RSA</option>
+          <option value="AES">AES</option>
+        </select>
+      </div>
+      <div>需要解密的文件： <input type="file" id="encryptFile" /></div>
+      <div>密钥包：<input type="file" id="secretPackage" /></div>
+      <div id="keysFileDiv">keys文件： <input type="file" id="keysFile" /></div>
+      <button id="submit" onclick="encryptFile()">submit</button>
+      <a id="downloadLink" href="#" target="_blank" style="display: none"
+        >解密成功，点击下载文件</a
+      >
+    </div>
+
+    <script>
+      if (!WebAssembly.instantiateStreaming) {
+        WebAssembly.instantiateStreaming = async (resp, importObject) => {
+          const source = await (await resp).arrayBuffer();
+          return await WebAssembly.instantiate(source, importObject);
+        };
+      }
+
+      function loadWasm(path) {
+        const go = new Go();
+        return new Promise((resolve, reject) => {
+          WebAssembly.instantiateStreaming(fetch(path), go.importObject)
+            .then((result) => {
+              go.run(result.instance);
+              resolve(result.instance);
+            })
+            .catch((error) => {
+              reject(error);
+            });
+        });
+      }
+
+      function encryptTypeChange() {
+        var encryptType = document.getElementById("encryptType").value;
+        if (encryptType == "AES") {
+          document.getElementById("keysFileDiv").style.display = "none";
+        } else {
+          document.getElementById("keysFileDiv").style.display = "block";
+        }
+      }
+      function encryptFile() {
+        var encryptType = document.getElementById("encryptType").value;
+        var encryptFile = document.getElementById("encryptFile").files[0];
+        var secretPackage = document.getElementById("secretPackage").files[0];
+        var fileType = encryptFile.type;
+
+        var promises = [encryptFile.arrayBuffer(), secretPackage.arrayBuffer()];
+        var keysFile;
+        if (encryptType == "RSA") {
+          keysFile = document.getElementById("keysFile").files[0];
+          promises.push(keysFile.arrayBuffer());
+        }
+        Promise.all(promises).then((res) => {
+          encryptFile = new Uint8Array(res[0]);
+          secretPackage = new Uint8Array(res[1]);
+          keysFile =
+            res.length == 3 ? new Uint8Array(res[2]) : new Uint8Array();
+
+          var res = __decrptyFile(
+            encryptType,
+            encryptFile,
+            secretPackage,
+            keysFile
+          );
+          console.log(
+            "🚀 ~ file: index.html ~ line 62 ~ Promise.all ~ res",
+            res
+          );
+          if (res && res.status == 1) {
+            encryptFile = null;
+            secretPackage = null;
+            keysFile = null;
+            var fileBuffer = new Uint8Array(res.byteLength);
+            __copyDecryptFileBytes(fileBuffer);
+            var blob = new Blob([fileBuffer], { type: fileType });
+            console.log(
+              "🚀 ~ file: index.html ~ line 87 ~ a.addEventListener ~ fileBuffer",
+              fileBuffer
+            );
+            console.log(
+              "🚀 ~ file: index.html ~ line 87 ~ a.addEventListener ~ blob",
+              blob
+            );
+            var fileURL = URL.createObjectURL(blob);
+
+            var a = document.getElementById("downloadLink");
+            a.style.display = "block";
+            a.href = fileURL;
+          }
+        });
+      }
+
+      loadWasm("main.wasm")
+        .then((wasm) => {
+          console.log("main.wasm is loaded");
+
+          // input = document.getElementById("file-input");
+          // console.log("🚀 ~ file: index.html ~ line 40 ~ .then ~ input", input);
+          // input.addEventListener("change", (e) => {
+          //   file = e.path[0].files[0];
+          //   file.arrayBuffer().then((bf) => {
+          //     bytes = new Uint8Array(bf);
+          //     let b = new Uint8Array(10);
+          //     let jsonData = Hello(bytes, b);
+          //     console.log(jsonData);
+          //     document.querySelector("h1").innerHTML = JSON.stringify(jsonData);
+          //   });
+          // });
+
+          // input=document.createElement('input')
+          // input.type='file'
+          // input.addEventListener('change',e=>{
+          //   file=e.path[0].files[0]
+          //   file.arrayBuffer().then(bf=>{
+          //     bytes=new Uint8Array(bf)
+          //      console.log(bytes)
+          //   })
+          // })
+          // input.click()
+        })
+        .catch((error) => {
+          console.log("error", error);
+        });
+    </script>
+  </body>
+</html>
